@@ -3,9 +3,6 @@ from flask import Flask, render_template_string, request, redirect, session
 from werkzeug.security import generate_password_hash, check_password_hash
 import json, os, schedule, threading, time
 from datetime import datetime
-import qrcode
-from io import BytesIO
-import base64
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
@@ -56,7 +53,7 @@ def home():
         return redirect("/login")
     data = load_data()
     counters = data["counters"]
-    user = session["username"]
+    user = session.get("username")
     return render_template_string(TEMPLATE_INDEX, counters=counters, user=user)
 
 @app.route("/login", methods=["GET","POST"])
@@ -93,10 +90,10 @@ def logout():
 # ---------------- Zähler Aktionen ----------------
 @app.route("/create_counter", methods=["POST"])
 def create_counter():
-    if require_login() or session["username"] != "Leroy":
+    if require_login() or session.get("username")!="Leroy":
         return redirect("/login")
     name = request.form["counter_name"].strip()
-    color = request.form.get("color", "#3498db")
+    color = request.form.get("color","#3498db")
     reset_day = int(request.form.get("reset_day",0))
     data = load_data()
     if name in data["counters"]:
@@ -122,20 +119,21 @@ def click(counter):
     c = data["counters"].get(counter)
     if not c:
         return "Zähler nicht gefunden!"
-    user = session["username"]
+    user = session.get("username")
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     c["weekly_count"] += 1
-    if c["weekly_count"] > 6: c["weekly_count"] = 6
+    if c["weekly_count"]>6: c["weekly_count"]=6
     c["total_count"] += 1
-    c["weekly_clicks"].append({"user":user,"time":now})
-    c["all_clicks"].append({"user":user,"time":now})
-    data["users"][user]["clicks"] +=1
+    c["weekly_clicks"].append({"user": user, "time": now})
+    c["all_clicks"].append({"user": user, "time": now})
+    if user in data["users"]:
+        data["users"][user]["clicks"] += 1
     save_data(data)
     return redirect("/")
 
 @app.route("/reset_weekly/<counter>")
 def reset_weekly(counter):
-    if require_login() or session["username"] != "Leroy":
+    if require_login() or session.get("username")!="Leroy":
         return redirect("/login")
     data = load_data()
     c = data["counters"].get(counter)
@@ -147,7 +145,7 @@ def reset_weekly(counter):
 
 @app.route("/reset_total/<counter>")
 def reset_total(counter):
-    if require_login() or session["username"] != "Leroy":
+    if require_login() or session.get("username")!="Leroy":
         return redirect("/login")
     data = load_data()
     c = data["counters"].get(counter)
@@ -159,7 +157,7 @@ def reset_total(counter):
 
 @app.route("/delete/<counter>")
 def delete_counter(counter):
-    if require_login() or session["username"] != "Leroy":
+    if require_login() or session.get("username")!="Leroy":
         return redirect("/login")
     data = load_data()
     if counter in data["counters"]:
@@ -167,42 +165,30 @@ def delete_counter(counter):
         save_data(data)
     return redirect("/")
 
-# ---------------- QR-Code + Auto Klick ----------------
-@app.route("/qr/<counter>")
-def qr_counter(counter):
+# ---------------- QR-Code Click ----------------
+@app.route("/qr_click/<counter>")
+def qr_click(counter):
+    # Automatisches Login als QR-Code Benutzer
+    session["username"] = "QR-Code"
     data = load_data()
-    # QR-Benutzer anlegen falls noch nicht vorhanden
-    if "QR-Code" not in data["users"]:
-        data["users"]["QR-Code"] = {"password": generate_password_hash("123456"), "clicks":0}
-        save_data(data)
-
-    # Zähler +1 für QR-Code
     c = data["counters"].get(counter)
     if not c:
         return "Zähler nicht gefunden!"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     c["weekly_count"] += 1
-    if c["weekly_count"] > 6: c["weekly_count"] = 6
+    if c["weekly_count"]>6: c["weekly_count"]=6
     c["total_count"] += 1
     c["weekly_clicks"].append({"user":"QR-Code","time":now})
     c["all_clicks"].append({"user":"QR-Code","time":now})
-    data["users"]["QR-Code"]["clicks"] += 1
     save_data(data)
-
-    # QR-Code generieren
-    url = request.url_root + f"click/{counter}"
-    img = qrcode.make(url)
-    buffer = BytesIO()
-    img.save(buffer, format="PNG")
-    qr_base64 = base64.b64encode(buffer.getvalue()).decode()
-
-    html = f"""
-    <h2>QR-Code für {counter}</h2>
-    <img src="data:image/png;base64,{qr_base64}">
-    <p>Scanne diesen QR-Code, um automatisch +1 zu zählen als Benutzer 'QR-Code'.</p>
-    <a href="/">Zurück</a>
+    return f"""
+    <html><head><title>Erfolg</title></head>
+    <body style="font-family:sans-serif;text-align:center;margin-top:50px;">
+    <h2>✅ Der Trocknervorgang wurde gezählt!</h2>
+    <p>Zähler: {counter}</p>
+    <p><a href="/">Zurück zur Übersicht</a></p>
+    </body></html>
     """
-    return html
 
 # ---------------- HTML Templates ----------------
 TEMPLATE_INDEX = """<!doctype html>
@@ -222,61 +208,70 @@ body{font-family:sans-serif;background:#f5f6fa;margin:0;padding:20px;}
 <script>
 function toggleForm(){document.getElementById('form').style.display='block';}
 function toggleHistory(id){var h=document.getElementById(id);h.style.display=(h.style.display=='none')?'block':'none';}
-// Smooth Confetti
+
+// Smooth Confetti Animation
 function createConfetti(card){
     for(let i=0;i<50;i++){
-        let div=document.createElement('div');
+        let div = document.createElement('div');
         div.style.width='8px';
         div.style.height='8px';
         div.style.position='absolute';
         div.style.background=['#f1c40f','#e74c3c','#2ecc71','#3498db','#9b59b6'][Math.floor(Math.random()*5)];
         div.style.left=Math.random()*card.offsetWidth+'px';
         div.style.top='0px';
-        div.style.opacity=1;
-        div.style.borderRadius="50%";
+        div.style.opacity = 1;
+        div.style.borderRadius = "50%";
         card.appendChild(div);
-        animateConfettiSmooth(div);
+        animateConfettiSmooth(div, card);
     }
 }
-function animateConfettiSmooth(div){
-    let top=0;
-    let left=parseFloat(div.style.left);
-    let speedY=Math.random()*2+1;
-    let speedX=(Math.random()-0.5)*1.5;
-    let opacity=1;
-    let startTime=performance.now();
+
+function animateConfettiSmooth(div, card){
+    let top = 0;
+    let left = parseFloat(div.style.left);
+    let speedY = Math.random()*2 + 1; 
+    let speedX = (Math.random()-0.5)*1.5;
+    let opacity = 1;
+    let startTime = performance.now();
+
     function frame(now){
-        let elapsed=now-startTime;
-        top+=speedY;
-        left+=speedX;
-        div.style.top=top+'px';
-        div.style.left=left+'px';
-        if(elapsed<5000){
+        let elapsed = now - startTime;
+        top += speedY;
+        left += speedX;
+        div.style.top = top + 'px';
+        div.style.left = left + 'px';
+
+        if(elapsed < 5000){ 
             requestAnimationFrame(frame);
-        }else if(elapsed<7000){
-            opacity=1-(elapsed-5000)/2000;
-            div.style.opacity=opacity;
+        } else if(elapsed < 7000){
+            opacity = 1 - (elapsed - 5000)/2000;
+            div.style.opacity = opacity;
             requestAnimationFrame(frame);
-        }else{ div.remove(); }
+        } else {
+            div.remove();
+        }
     }
     requestAnimationFrame(frame);
 }
+
 function clickButton(el){
     createConfetti(el.parentNode);
-    let fill=el.parentNode.querySelector('.progress-bar-fill');
-    let current=parseInt(fill.getAttribute('data-count'))||0;
-    if(current<6){
-        current+=1;
-        fill.style.width=(current/6*100)+'%';
-        fill.innerText=current+'/6';
-        fill.setAttribute('data-count',current);
+    let fill = el.parentNode.querySelector('.progress-bar-fill');
+    let current = parseInt(fill.getAttribute('data-count')) || 0;
+    if(current < 6){
+        current += 1;
+        fill.style.width = (current/6*100)+'%';
+        fill.innerText = current + '/6';
+        fill.setAttribute('data-count', current);
     }
 }
 </script>
 </head>
 <body>
 <h2>Willkommen, {{user}}!</h2>
+{% if user != 'QR-Code' %}
 <a href="/logout"><button style="background:red;color:white;">Logout</button></a>
+{% endif %}
 <div style="cursor:pointer;margin:15px 0;" onclick="toggleForm()">➕ Neuer Zähler</div>
 <form id="form" method="POST" action="/create_counter" style="display:none;margin-bottom:20px;">
 <input name="counter_name" placeholder="Zählername" required>
@@ -298,7 +293,7 @@ function clickButton(el){
   </div>
   <p>Woche: {{c.weekly_count}} | Gesamt: {{c.total_count}}</p>
   <a href="/click/{{c.name}}" onclick="clickButton(this)"><button class="btn-full">+1</button></a>
-  {% if user=='Leroy' %}
+  {% if user == 'Leroy' %}
   <a href="/reset_weekly/{{c.name}}"><button class="btn-full" style="background:#e67e22;">Woche zurücksetzen</button></a>
   <a href="/reset_total/{{c.name}}"><button class="btn-full" style="background:#c0392b;">Gesamt zurücksetzen</button></a>
   {% endif %}
@@ -311,7 +306,7 @@ function clickButton(el){
       {% endfor %}
     </table>
   </div>
-  <a href="/qr/{{c.name}}"><button class="btn-full" style="background:#9b59b6;">QR-Code</button></a>
+  <p>QR-Link: <a href="/qr_click/{{c.name}}" target="_blank">QR +1</a></p>
 </div>
 {% endfor %}
 </body>
