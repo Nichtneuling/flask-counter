@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
-from flask import Flask, render_template, render_template_string, request, redirect, session, flash
+from flask import Flask, render_template, render_template_string, request, redirect, session
 from werkzeug.security import generate_password_hash, check_password_hash
 import json, os, schedule, threading, time
 from datetime import datetime
+import qrcode
+from io import BytesIO
+import base64
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
@@ -33,7 +36,7 @@ def schedule_reset(counter_name, weekday):
             save_data(data)
             print(f"[AUTO] {counter_name} weekly reset executed on {datetime.now()}")
     if 0 <= weekday <= 6:
-        schedule.every().__getattribute__(weekdays[weekday]).at("00:00").do(job)
+        getattr(schedule.every(), weekdays[weekday]).at("00:00").do(job)
 
 def start_scheduler():
     while True:
@@ -46,36 +49,27 @@ threading.Thread(target=start_scheduler, daemon=True).start()
 def require_login():
     return "username" not in session
 
+# ---------------- Routes ----------------
+@app.route("/")
+def home():
+    if require_login():
+        return redirect("/login")
+    data = load_data()
+    counters = data["counters"]
+    return render_template("index.html", counters=counters, username=session["username"])
+
 @app.route("/login", methods=["GET","POST"])
 def login():
-    error = None
     if request.method=="POST":
         username = request.form["username"]
         password = request.form["password"]
         data = load_data()
         user = data["users"].get(username)
         if not user or not check_password_hash(user["password"], password):
-            error = "Falscher Benutzername oder Passwort!"
-        else:
-            session["username"] = username
-            return redirect("/")
-    return render_template_string(TEMPLATE_LOGIN, error=error)
-
-@app.route("/register", methods=["GET","POST"])
-def register():
-    error = None
-    if request.method=="POST":
-        username = request.form["username"]
-        password = request.form["password"]
-        data = load_data()
-        if username in data["users"]:
-            error = "Benutzer existiert bereits!"
-        else:
-            data["users"][username] = {"password": generate_password_hash(password), "clicks":0}
-            save_data(data)
-            session["username"] = username
-            return redirect("/")
-    return render_template_string(TEMPLATE_REGISTER, error=error)
+            return "Falscher Benutzername oder Passwort!"
+        session["username"] = username
+        return redirect("/")
+    return render_template("login.html")
 
 @app.route("/logout")
 def logout():
@@ -83,29 +77,6 @@ def logout():
     return redirect("/login")
 
 # ---------------- Zähler Aktionen ----------------
-@app.route("/create_counter", methods=["POST"])
-def create_counter():
-    if require_login() or session["username"]!="Leroy":
-        return redirect("/login")
-    name = request.form["counter_name"].strip()
-    color = request.form.get("color","#3498db")
-    reset_day = int(request.form.get("reset_day",0))
-    data = load_data()
-    if name in data["counters"]:
-        return "Zähler existiert bereits!"
-    data["counters"][name] = {
-        "name": name,
-        "color": color,
-        "weekly_count":0,
-        "total_count":0,
-        "weekly_clicks":[],
-        "all_clicks":[],
-        "reset_day": reset_day
-    }
-    save_data(data)
-    schedule_reset(name, reset_day)
-    return redirect("/")
-
 @app.route("/click/<counter>")
 def click(counter):
     if require_login():
@@ -121,12 +92,14 @@ def click(counter):
     c["weekly_clicks"].append({"user":session["username"],"time":now})
     c["all_clicks"].append({"user":session["username"],"time":now})
     save_data(data)
+    if session["username"]=="QR-Code":
+        return "Trocknervorgang gezählt!"
     return redirect("/")
 
 @app.route("/reset_weekly/<counter>")
 def reset_weekly(counter):
     if require_login() or session["username"]!="Leroy":
-        return redirect("/login")
+        return redirect("/")
     data = load_data()
     c = data["counters"].get(counter)
     if c:
@@ -138,7 +111,7 @@ def reset_weekly(counter):
 @app.route("/reset_total/<counter>")
 def reset_total(counter):
     if require_login() or session["username"]!="Leroy":
-        return redirect("/login")
+        return redirect("/")
     data = load_data()
     c = data["counters"].get(counter)
     if c:
@@ -147,44 +120,22 @@ def reset_total(counter):
         save_data(data)
     return redirect("/")
 
-@app.route("/delete/<counter>")
-def delete_counter(counter):
-    if require_login() or session["username"]!="Leroy":
+# ---------------- QR-Code anzeigen ----------------
+@app.route("/show_qrcode/<counter>")
+def show_qrcode(counter):
+    if require_login():
         return redirect("/login")
     data = load_data()
-    if counter in data["counters"]:
-        del data["counters"][counter]
-        save_data(data)
-    return redirect("/")
+    if counter not in data["counters"]:
+        return "Zähler nicht gefunden!"
+    click_url = request.host_url + f"click/{counter}"
+    img = qrcode.make(click_url)
+    buffered = BytesIO()
+    img.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode()
+    return f'<img src="data:image/png;base64,{img_str}"><br><a href="/">Zurück</a>'
 
-# ---------------- HTML Templates ----------------
-TEMPLATE_LOGIN = """<!doctype html>
-<html><head><title>Login</title></head>
-<body>
-<h2>Login</h2>
-{% if error %}<p style="color:red">{{error}}</p>{% endif %}
-<form method="POST">
-<input name="username" placeholder="Benutzername" required><br>
-<input type="password" name="password" placeholder="Passwort" required><br>
-<button>Login</button>
-</form>
-<p>Noch kein Konto? <a href="/register">Registrieren</a></p>
-</body></html>"""
-
-TEMPLATE_REGISTER = """<!doctype html>
-<html><head><title>Registrieren</title></head>
-<body>
-<h2>Registrieren</h2>
-{% if error %}<p style="color:red">{{error}}</p>{% endif %}
-<form method="POST">
-<input name="username" placeholder="Benutzername" required><br>
-<input type="password" name="password" placeholder="Passwort" required><br>
-<button>Konto erstellen</button>
-</form>
-<p>Schon registriert? <a href="/login">Login</a></p>
-</body></html>"""
-
-# ---------------- Start ----------------
+# ---------------- START ----------------
 if __name__ == "__main__":
     data = load_data()
     for cname,c in data["counters"].items():
