@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Zähler Dashboard</title>
+    <style>
+        body { font-family: sans-serif; background: #f5f6fa; text-align: center; }
+        .counter {
+            display: inline-block;
+            width: 250px;
+            margin: 20px;
+            padding: 20px;
+            border-radius: 20px;
+            background: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        button {
+            border: none; border-radius: 10px;
+            background: #3498db; color: white;
+            padding: 10px 20px; margin-top: 10px;
+            cursor: pointer; transition: 0.3s;
+        }
+        button:hover { background: #2980b9; }
+        .delete { position: absolute; top: 10px; right: 10px; color: red; text-decoration: none; }
+        .logout { position: fixed; top: 20px; right: 20px; text-decoration: none; color: #333; }
+    </style>
+</head>
+<body>
+    <h1>Willkommen, {{ user }} 👋</h1>
+    <a href="/logout" class="logout">Logout</a>
+
+    {% if user == 'Leroy' %}
+    <form action="/add_counter" method="POST">
+        <input name="name" placeholder="Zählername" required>
+        <input type="color" name="color" value="#3498db" required>
+        <select name="reset_day" required>
+            <option value="Montag">Montag</option>
+            <option value="Dienstag">Dienstag</option>
+            <option value="Mittwoch">Mittwoch</option>
+            <option value="Donnerstag">Donnerstag</option>
+            <option value="Freitag">Freitag</option>
+            <option value="Samstag">Samstag</option>
+            <option value="Sonntag">Sonntag</option>
+        </select>
+        <button type="submit">Zähler hinzufügen</button>
+    </form>
+    {% endif %}
+
+    <div>
+        {% for name, c in data.counters.items() %}
+        <div class="counter" style="border-top: 5px solid {{ c.color }};">
+            <h3>{{ name }}</h3>
+            <p>Woche: {{ c.weekly_count }} / 6</p>
+            <p>Gesamt: {{ c.total_count }}</p>
+
+            <form action="/click/{{ name }}">
+                <button>+1</button>
+            </form>
+
+            <a href="/qrcode/{{ name }}"><button>QR-Code</button></a>
+
+            {% if user == 'Leroy' %}
+            <a href="/delete/{{ name }}" class="delete">🗑</a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if user == 'Leroy' %}
+    <div style="margin-top: 20px;">
+        <a href="/reset_week"><button>Wochencounter zurücksetzen</button></a>
+        <a href="/reset_all"><button>Gesamten Counter zurücksetzen</button></a>
+    </div>
+    {% endif %}
+</body>
+</html>
