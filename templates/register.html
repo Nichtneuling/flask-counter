@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Registrierung</title>
+    <style>
+        body { text-align: center; margin-top: 100px; font-family: sans-serif; background: #f5f6fa; }
+        input { padding: 10px; margin: 5px; border-radius: 5px; border: 1px solid #ccc; width: 200px; }
+        button { padding: 10px 20px; background: #2ecc71; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #27ae60; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h2>Registrieren</h2>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <form method="POST">
+        <input name="username" placeholder="Benutzername" required><br>
+        <input type="password" name="password" placeholder="Passwort" required><br>
+        <button type="submit">Registrieren</button>
+    </form>
+    <p>Schon einen Account? <a href="/">Zum Login</a></p>
+</body>
+</html>
