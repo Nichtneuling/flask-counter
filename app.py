@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-from flask import Flask, render_template_string, request, redirect, session
+from flask import Flask, render_template_string, request, redirect, session, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
 import json, os, schedule, threading, time
 from datetime import datetime
+import io
+import qrcode
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
@@ -157,7 +159,8 @@ def reset_total(counter):
 
 @app.route("/delete/<counter>")
 def delete_counter(counter):
-    if require_login() or session.get("username")!="Leroy":
+    user = session.get("username")
+    if require_login() or user!="Leroy":
         return redirect("/login")
     data = load_data()
     if counter in data["counters"]:
@@ -190,6 +193,16 @@ def qr_click(counter):
     </body></html>
     """
 
+# ---------------- QR-Code Bild generieren ----------------
+@app.route("/qr_image/<counter>")
+def qr_image(counter):
+    url = f"{request.url_root}qr_click/{counter}"
+    img = qrcode.make(url)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return send_file(buf, mimetype='image/png')
+
 # ---------------- HTML Templates ----------------
 TEMPLATE_INDEX = """<!doctype html>
 <html>
@@ -208,54 +221,7 @@ body{font-family:sans-serif;background:#f5f6fa;margin:0;padding:20px;}
 <script>
 function toggleForm(){document.getElementById('form').style.display='block';}
 function toggleHistory(id){var h=document.getElementById(id);h.style.display=(h.style.display=='none')?'block':'none';}
-
-// Smooth Confetti Animation
-function createConfetti(card){
-    for(let i=0;i<50;i++){
-        let div = document.createElement('div');
-        div.style.width='8px';
-        div.style.height='8px';
-        div.style.position='absolute';
-        div.style.background=['#f1c40f','#e74c3c','#2ecc71','#3498db','#9b59b6'][Math.floor(Math.random()*5)];
-        div.style.left=Math.random()*card.offsetWidth+'px';
-        div.style.top='0px';
-        div.style.opacity = 1;
-        div.style.borderRadius = "50%";
-        card.appendChild(div);
-        animateConfettiSmooth(div, card);
-    }
-}
-
-function animateConfettiSmooth(div, card){
-    let top = 0;
-    let left = parseFloat(div.style.left);
-    let speedY = Math.random()*2 + 1; 
-    let speedX = (Math.random()-0.5)*1.5;
-    let opacity = 1;
-    let startTime = performance.now();
-
-    function frame(now){
-        let elapsed = now - startTime;
-        top += speedY;
-        left += speedX;
-        div.style.top = top + 'px';
-        div.style.left = left + 'px';
-
-        if(elapsed < 5000){ 
-            requestAnimationFrame(frame);
-        } else if(elapsed < 7000){
-            opacity = 1 - (elapsed - 5000)/2000;
-            div.style.opacity = opacity;
-            requestAnimationFrame(frame);
-        } else {
-            div.remove();
-        }
-    }
-    requestAnimationFrame(frame);
-}
-
 function clickButton(el){
-    createConfetti(el.parentNode);
     let fill = el.parentNode.querySelector('.progress-bar-fill');
     let current = parseInt(fill.getAttribute('data-count')) || 0;
     if(current < 6){
@@ -269,7 +235,7 @@ function clickButton(el){
 </head>
 <body>
 <h2>Willkommen, {{user}}!</h2>
-{% if user != 'QR-Code' %}
+{% if user %}
 <a href="/logout"><button style="background:red;color:white;">Logout</button></a>
 {% endif %}
 <div style="cursor:pointer;margin:15px 0;" onclick="toggleForm()">➕ Neuer Zähler</div>
@@ -286,7 +252,9 @@ function clickButton(el){
 </form>
 {% for name,c in counters.items() %}
 <div class="card" style="background:{{c.color}}">
+  {% if user == 'Leroy' %}
   <a href="/delete/{{c.name}}" class="delete-btn">🗑</a>
+  {% endif %}
   <h3>{{c.name}}</h3>
   <div class="progress-bar-container">
     <div class="progress-bar-fill" data-count="{{c.weekly_count}}" style="width:{{(c.weekly_count/6*100)}}%">{{c.weekly_count}}/6</div>
@@ -306,7 +274,8 @@ function clickButton(el){
       {% endfor %}
     </table>
   </div>
-  <p>QR-Link: <a href="/qr_click/{{c.name}}" target="_blank">QR +1</a></p>
+  <p>QR-Code:</p>
+  <img src="/qr_image/{{c.name}}" alt="QR Code für {{c.name}}">
 </div>
 {% endfor %}
 </body>
