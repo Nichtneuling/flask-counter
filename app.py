@@ -3,8 +3,8 @@ from flask import Flask, render_template_string, request, redirect, session, sen
 from werkzeug.security import generate_password_hash, check_password_hash
 import json, os, schedule, threading, time
 from datetime import datetime
-import io
 import qrcode
+import io
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
@@ -55,7 +55,7 @@ def home():
         return redirect("/login")
     data = load_data()
     counters = data["counters"]
-    user = session.get("username")
+    user = session["username"]
     return render_template_string(TEMPLATE_INDEX, counters=counters, user=user)
 
 @app.route("/login", methods=["GET","POST"])
@@ -92,7 +92,7 @@ def logout():
 # ---------------- Zähler Aktionen ----------------
 @app.route("/create_counter", methods=["POST"])
 def create_counter():
-    if require_login() or session.get("username")!="Leroy":
+    if require_login() or session["username"]!="Leroy":
         return redirect("/login")
     name = request.form["counter_name"].strip()
     color = request.form.get("color","#3498db")
@@ -121,21 +121,20 @@ def click(counter):
     c = data["counters"].get(counter)
     if not c:
         return "Zähler nicht gefunden!"
-    user = session.get("username")
+    user = session["username"]
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     c["weekly_count"] += 1
     if c["weekly_count"]>6: c["weekly_count"]=6
     c["total_count"] += 1
-    c["weekly_clicks"].append({"user": user, "time": now})
-    c["all_clicks"].append({"user": user, "time": now})
-    if user in data["users"]:
-        data["users"][user]["clicks"] += 1
+    c["weekly_clicks"].append({"user":user,"time":now})
+    c["all_clicks"].append({"user":user,"time":now})
+    data["users"][user]["clicks"] +=1
     save_data(data)
     return redirect("/")
 
 @app.route("/reset_weekly/<counter>")
 def reset_weekly(counter):
-    if require_login() or session.get("username")!="Leroy":
+    if require_login() or session["username"]!="Leroy":
         return redirect("/login")
     data = load_data()
     c = data["counters"].get(counter)
@@ -147,7 +146,7 @@ def reset_weekly(counter):
 
 @app.route("/reset_total/<counter>")
 def reset_total(counter):
-    if require_login() or session.get("username")!="Leroy":
+    if require_login() or session["username"]!="Leroy":
         return redirect("/login")
     data = load_data()
     c = data["counters"].get(counter)
@@ -159,8 +158,7 @@ def reset_total(counter):
 
 @app.route("/delete/<counter>")
 def delete_counter(counter):
-    user = session.get("username")
-    if require_login() or user!="Leroy":
+    if require_login() or session["username"]!="Leroy":
         return redirect("/login")
     data = load_data()
     if counter in data["counters"]:
@@ -168,40 +166,21 @@ def delete_counter(counter):
         save_data(data)
     return redirect("/")
 
-# ---------------- QR-Code Click ----------------
-@app.route("/qr_click/<counter>")
-def qr_click(counter):
-    # Automatisches Login als QR-Code Benutzer
-    session["username"] = "QR-Code"
-    data = load_data()
-    c = data["counters"].get(counter)
-    if not c:
-        return "Zähler nicht gefunden!"
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    c["weekly_count"] += 1
-    if c["weekly_count"]>6: c["weekly_count"]=6
-    c["total_count"] += 1
-    c["weekly_clicks"].append({"user":"QR-Code","time":now})
-    c["all_clicks"].append({"user":"QR-Code","time":now})
-    save_data(data)
-    return f"""
-    <html><head><title>Erfolg</title></head>
-    <body style="font-family:sans-serif;text-align:center;margin-top:50px;">
-    <h2>✅ Der Trocknervorgang wurde gezählt!</h2>
-    <p>Zähler: {counter}</p>
-    <p><a href="/">Zurück zur Übersicht</a></p>
-    </body></html>
-    """
-
-# ---------------- QR-Code Bild generieren ----------------
+# ---------------- QR-Code ----------------
 @app.route("/qr_image/<counter>")
 def qr_image(counter):
-    url = f"{request.url_root}qr_click/{counter}"
-    img = qrcode.make(url)
+    data = load_data()
+    if counter not in data["counters"]:
+        return "Zähler nicht gefunden!"
+    url = f"https://flask-counter-br47.onrender.com/click/{counter}?user=QR-Code"
+    qr = qrcode.QRCode(box_size=6, border=2)
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
-    return send_file(buf, mimetype='image/png')
+    return send_file(buf, mimetype="image/png")
 
 # ---------------- HTML Templates ----------------
 TEMPLATE_INDEX = """<!doctype html>
@@ -221,6 +200,7 @@ body{font-family:sans-serif;background:#f5f6fa;margin:0;padding:20px;}
 <script>
 function toggleForm(){document.getElementById('form').style.display='block';}
 function toggleHistory(id){var h=document.getElementById(id);h.style.display=(h.style.display=='none')?'block':'none';}
+function toggleQR(id){var qr=document.getElementById(id);qr.style.display=(qr.style.display=='none')?'block':'none';}
 function clickButton(el){
     let fill = el.parentNode.querySelector('.progress-bar-fill');
     let current = parseInt(fill.getAttribute('data-count')) || 0;
@@ -235,9 +215,7 @@ function clickButton(el){
 </head>
 <body>
 <h2>Willkommen, {{user}}!</h2>
-{% if user %}
 <a href="/logout"><button style="background:red;color:white;">Logout</button></a>
-{% endif %}
 <div style="cursor:pointer;margin:15px 0;" onclick="toggleForm()">➕ Neuer Zähler</div>
 <form id="form" method="POST" action="/create_counter" style="display:none;margin-bottom:20px;">
 <input name="counter_name" placeholder="Zählername" required>
@@ -274,8 +252,10 @@ function clickButton(el){
       {% endfor %}
     </table>
   </div>
-  <p>QR-Code:</p>
-  <img src="/qr_image/{{c.name}}" alt="QR Code für {{c.name}}">
+  <button class="btn-full" onclick="toggleQR('qr-{{c.name}}')">QR-Code anzeigen</button>
+  <div id="qr-{{c.name}}" style="display:none;margin-top:10px;">
+    <img src="/qr_image/{{c.name}}" alt="QR Code für {{c.name}}">
+  </div>
 </div>
 {% endfor %}
 </body>
@@ -309,6 +289,9 @@ TEMPLATE_REGISTER = """<!doctype html>
 # ---------------- START ----------------
 if __name__ == "__main__":
     data = load_data()
+    if "QR-Code" not in data["users"]:
+        data["users"]["QR-Code"] = {"password": generate_password_hash("123456"), "clicks":0}
+        save_data(data)
     for cname,c in data["counters"].items():
         schedule_reset(cname, c.get("reset_day",0))
     app.run(host="0.0.0.0", port=5000)
