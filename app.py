@@ -1,157 +1,192 @@
-from flask import Flask, render_template, request, redirect, session, send_file
-import os, json, io, qrcode
+# -*- coding: utf-8 -*-
+from flask import Flask, render_template, render_template_string, request, redirect, session, flash
+from werkzeug.security import generate_password_hash, check_password_hash
+import json, os, schedule, threading, time
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
 
 DATA_FILE = "data.json"
 
-# -----------------------------------------------------------------
-# Hilfsfunktionen
-# -----------------------------------------------------------------
+# ---------------- Datenverwaltung ----------------
 def load_data():
     if not os.path.exists(DATA_FILE):
-        data = {
-            "users": {
-                "Leroy": {"password": "admin"},
-                "QR-Code": {"password": "123456"}
-            },
-            "counters": {}
-        }
-        save_data(data)
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump({"users": {}, "counters": {}}, f)
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
 def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+        json.dump(data, f, indent=2)
 
-# -----------------------------------------------------------------
-# Login & Registrierung
-# -----------------------------------------------------------------
-@app.route("/", methods=["GET", "POST"])
+# ---------------- Scheduler ----------------
+def schedule_reset(counter_name, weekday):
+    weekdays = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
+    def job():
+        data = load_data()
+        c = data["counters"].get(counter_name)
+        if c:
+            c["weekly_count"] = 0
+            c["weekly_clicks"] = []
+            save_data(data)
+            print(f"[AUTO] {counter_name} weekly reset executed on {datetime.now()}")
+    if 0 <= weekday <= 6:
+        schedule.every().__getattribute__(weekdays[weekday]).at("00:00").do(job)
+
+def start_scheduler():
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
+
+threading.Thread(target=start_scheduler, daemon=True).start()
+
+# ---------------- Login ----------------
+def require_login():
+    return "username" not in session
+
+@app.route("/login", methods=["GET","POST"])
 def login():
-    if request.method == "POST":
-        data = load_data()
+    error = None
+    if request.method=="POST":
         username = request.form["username"]
         password = request.form["password"]
-        if username in data["users"] and data["users"][username]["password"] == password:
-            session["username"] = username
-            return redirect("/dashboard")
+        data = load_data()
+        user = data["users"].get(username)
+        if not user or not check_password_hash(user["password"], password):
+            error = "Falscher Benutzername oder Passwort!"
         else:
-            return render_template("login.html", error="❌ Falscher Benutzername oder Passwort")
-    return render_template("login.html", error=None)
+            session["username"] = username
+            return redirect("/")
+    return render_template_string(TEMPLATE_LOGIN, error=error)
 
-@app.route("/register", methods=["GET", "POST"])
+@app.route("/register", methods=["GET","POST"])
 def register():
-    if request.method == "POST":
-        data = load_data()
+    error = None
+    if request.method=="POST":
         username = request.form["username"]
         password = request.form["password"]
+        data = load_data()
         if username in data["users"]:
-            return render_template("register.html", error="⚠️ Benutzername existiert bereits")
-        data["users"][username] = {"password": password}
-        save_data(data)
-        session["username"] = username
-        return redirect("/dashboard")
-    return render_template("register.html", error=None)
+            error = "Benutzer existiert bereits!"
+        else:
+            data["users"][username] = {"password": generate_password_hash(password), "clicks":0}
+            save_data(data)
+            session["username"] = username
+            return redirect("/")
+    return render_template_string(TEMPLATE_REGISTER, error=error)
 
 @app.route("/logout")
 def logout():
-    session.clear()
+    session.pop("username", None)
+    return redirect("/login")
+
+# ---------------- Zähler Aktionen ----------------
+@app.route("/create_counter", methods=["POST"])
+def create_counter():
+    if require_login() or session["username"]!="Leroy":
+        return redirect("/login")
+    name = request.form["counter_name"].strip()
+    color = request.form.get("color","#3498db")
+    reset_day = int(request.form.get("reset_day",0))
+    data = load_data()
+    if name in data["counters"]:
+        return "Zähler existiert bereits!"
+    data["counters"][name] = {
+        "name": name,
+        "color": color,
+        "weekly_count":0,
+        "total_count":0,
+        "weekly_clicks":[],
+        "all_clicks":[],
+        "reset_day": reset_day
+    }
+    save_data(data)
+    schedule_reset(name, reset_day)
     return redirect("/")
 
-# -----------------------------------------------------------------
-# Dashboard & Counter
-# -----------------------------------------------------------------
-@app.route("/dashboard")
-def dashboard():
-    if "username" not in session:
-        return redirect("/")
+@app.route("/click/<counter>")
+def click(counter):
+    if require_login():
+        return redirect("/login")
     data = load_data()
-    user = session["username"]
-    return render_template("dashboard.html", data=data, user=user)
-
-@app.route("/add_counter", methods=["POST"])
-def add_counter():
-    if "username" not in session or session["username"] != "Leroy":
-        return redirect("/")
-    data = load_data()
-    name = request.form["name"]
-    color = request.form["color"]
-    reset_day = request.form["reset_day"]
-    data["counters"][name] = {"color": color, "reset_day": reset_day, "weekly_count": 0, "total_count": 0}
+    c = data["counters"].get(counter)
+    if not c:
+        return "Zähler nicht gefunden!"
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    c["weekly_count"] += 1
+    if c["weekly_count"]>6: c["weekly_count"]=6
+    c["total_count"] += 1
+    c["weekly_clicks"].append({"user":session["username"],"time":now})
+    c["all_clicks"].append({"user":session["username"],"time":now})
     save_data(data)
-    return redirect("/dashboard")
+    return redirect("/")
+
+@app.route("/reset_weekly/<counter>")
+def reset_weekly(counter):
+    if require_login() or session["username"]!="Leroy":
+        return redirect("/login")
+    data = load_data()
+    c = data["counters"].get(counter)
+    if c:
+        c["weekly_count"] = 0
+        c["weekly_clicks"] = []
+        save_data(data)
+    return redirect("/")
+
+@app.route("/reset_total/<counter>")
+def reset_total(counter):
+    if require_login() or session["username"]!="Leroy":
+        return redirect("/login")
+    data = load_data()
+    c = data["counters"].get(counter)
+    if c:
+        c["total_count"] = 0
+        c["all_clicks"] = []
+        save_data(data)
+    return redirect("/")
 
 @app.route("/delete/<counter>")
 def delete_counter(counter):
-    if "username" not in session or session["username"] != "Leroy":
-        return "Keine Berechtigung!"
+    if require_login() or session["username"]!="Leroy":
+        return redirect("/login")
     data = load_data()
     if counter in data["counters"]:
         del data["counters"][counter]
         save_data(data)
-    return redirect("/dashboard")
+    return redirect("/")
 
-@app.route("/click/<counter>")
-def click_counter(counter):
-    data = load_data()
-    if counter not in data["counters"]:
-        return "Zähler nicht gefunden!"
-    user = session.get("username") or request.args.get("user")
-    if not user:
-        return redirect("/")
-    c = data["counters"][counter]
-    c["weekly_count"] = min(c["weekly_count"] + 1, 6)
-    c["total_count"] += 1
-    save_data(data)
-    if user == "QR-Code":
-        return "<h2 style='text-align:center;color:green;'>✅ Der Trocknervorgang wurde gezählt!</h2>"
-    return redirect("/dashboard")
+# ---------------- HTML Templates ----------------
+TEMPLATE_LOGIN = """<!doctype html>
+<html><head><title>Login</title></head>
+<body>
+<h2>Login</h2>
+{% if error %}<p style="color:red">{{error}}</p>{% endif %}
+<form method="POST">
+<input name="username" placeholder="Benutzername" required><br>
+<input type="password" name="password" placeholder="Passwort" required><br>
+<button>Login</button>
+</form>
+<p>Noch kein Konto? <a href="/register">Registrieren</a></p>
+</body></html>"""
 
-@app.route("/reset_week")
-def reset_week():
-    if "username" not in session or session["username"] != "Leroy":
-        return redirect("/")
-    data = load_data()
-    for c in data["counters"].values():
-        c["weekly_count"] = 0
-    save_data(data)
-    return redirect("/dashboard")
+TEMPLATE_REGISTER = """<!doctype html>
+<html><head><title>Registrieren</title></head>
+<body>
+<h2>Registrieren</h2>
+{% if error %}<p style="color:red">{{error}}</p>{% endif %}
+<form method="POST">
+<input name="username" placeholder="Benutzername" required><br>
+<input type="password" name="password" placeholder="Passwort" required><br>
+<button>Konto erstellen</button>
+</form>
+<p>Schon registriert? <a href="/login">Login</a></p>
+</body></html>"""
 
-@app.route("/reset_all")
-def reset_all():
-    if "username" not in session or session["username"] != "Leroy":
-        return redirect("/")
-    data = load_data()
-    for c in data["counters"].values():
-        c["weekly_count"] = 0
-        c["total_count"] = 0
-    save_data(data)
-    return redirect("/dashboard")
-
-# -----------------------------------------------------------------
-# QR-Code
-# -----------------------------------------------------------------
-@app.route("/qrcode/<counter>")
-def show_qrcode(counter):
-    if "username" not in session:
-        return redirect("/")
-    return render_template("qrcode.html", counter=counter)
-
-@app.route("/qrcode_image/<counter>")
-def qrcode_image(counter):
-    base_url = request.host_url.rstrip("/")
-    qr_url = f"{base_url}/click/{counter}?user=QR-Code"
-    img = qrcode.make(qr_url)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return send_file(buf, mimetype="image/png")
-
-# -----------------------------------------------------------------
-# Start
-# -----------------------------------------------------------------
+# ---------------- Start ----------------
 if __name__ == "__main__":
+    data = load_data()
+    for cname,c in data["counters"].items():
+        schedule_reset(cname, c.get("reset_day",0))
     app.run(host="0.0.0.0", port=5000)
