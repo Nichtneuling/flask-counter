@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
-from flask import Flask, render_template_string, request, redirect, session
+from flask import Flask, render_template_string, request, redirect, session, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 import json, os, schedule, threading, time
 from datetime import datetime
+import qrcode
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
 
 DATA_FILE = "data.json"
+QR_FOLDER = "static/qr"
 
 # ---------------- Datenverwaltung ----------------
 def load_data():
@@ -21,19 +23,23 @@ def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-# ---------------- Bereinigung defekter Zähler ----------------
-def clean_invalid_counters():
-    data = load_data()
-    invalid = []
-    for name, c in list(data["counters"].items()):
-        required_keys = {"name","color","weekly_count","total_count","weekly_clicks","all_clicks","reset_day"}
-        if not required_keys.issubset(c.keys()):
-            invalid.append(name)
-    for name in invalid:
-        print(f"[CLEANUP] Entferne defekten Zähler: {name}")
-        del data["counters"][name]
-    if invalid:
-        save_data(data)
+# ---------------- QR-Code erzeugen ----------------
+def generate_qr(counter_name):
+    if not os.path.exists(QR_FOLDER):
+        os.makedirs(QR_FOLDER)
+    url = f"{request.url_root}click/{counter_name}"
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=5,
+        border=2,
+    )
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    filepath = os.path.join(QR_FOLDER, f"qr_{counter_name}.png")
+    img.save(filepath)
+    return f"/{filepath.replace(os.sep, '/')}"
 
 # ---------------- Scheduler ----------------
 def schedule_reset(counter_name, weekday):
@@ -67,8 +73,10 @@ def home():
         return redirect("/login")
     data = load_data()
     counters = data["counters"]
-    user = session["username"]
-    return render_template_string(TEMPLATE_INDEX, counters=counters, user=user)
+    qr_codes = {}
+    for name in counters.keys():
+        qr_codes[name] = generate_qr(name)
+    return render_template_string(TEMPLATE_INDEX, counters=counters, qr_codes=qr_codes, user=session.get("username",""))
 
 @app.route("/login", methods=["GET","POST"])
 def login():
@@ -104,21 +112,21 @@ def logout():
 # ---------------- Zähler Aktionen ----------------
 @app.route("/create_counter", methods=["POST"])
 def create_counter():
-    if require_login():
+    if require_login() or session["username"] != "Leroy":
         return redirect("/login")
     name = request.form["counter_name"].strip()
-    color = request.form.get("color","#3498db")
-    reset_day = int(request.form.get("reset_day",0))
+    color = request.form.get("color", "#3498db")
+    reset_day = int(request.form.get("reset_day", 0))
     data = load_data()
     if name in data["counters"]:
         return "Zähler existiert bereits!"
     data["counters"][name] = {
         "name": name,
         "color": color,
-        "weekly_count":0,
-        "total_count":0,
-        "weekly_clicks":[],
-        "all_clicks":[],
+        "weekly_count": 0,
+        "total_count": 0,
+        "weekly_clicks": [],
+        "all_clicks": [],
         "reset_day": reset_day
     }
     save_data(data)
@@ -132,20 +140,20 @@ def click(counter):
     data = load_data()
     c = data["counters"].get(counter)
     if not c:
-        return redirect("/")
+        return "Zähler nicht gefunden!"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     c["weekly_count"] += 1
-    if c["weekly_count"]>6: c["weekly_count"]=6
+    if c["weekly_count"] > 6: c["weekly_count"] = 6
     c["total_count"] += 1
-    c["weekly_clicks"].append({"user":session["username"],"time":now})
-    c["all_clicks"].append({"user":session["username"],"time":now})
+    c["weekly_clicks"].append({"user": session.get("username","Gast"), "time": now})
+    c["all_clicks"].append({"user": session.get("username","Gast"), "time": now})
     save_data(data)
     return redirect("/")
 
 @app.route("/reset_weekly/<counter>")
 def reset_weekly(counter):
-    if require_login() or session["username"]!="Leroy":
-        return redirect("/")
+    if require_login() or session["username"] != "Leroy":
+        return redirect("/login")
     data = load_data()
     c = data["counters"].get(counter)
     if c:
@@ -156,8 +164,8 @@ def reset_weekly(counter):
 
 @app.route("/reset_total/<counter>")
 def reset_total(counter):
-    if require_login() or session["username"]!="Leroy":
-        return redirect("/")
+    if require_login() or session["username"] != "Leroy":
+        return redirect("/login")
     data = load_data()
     c = data["counters"].get(counter)
     if c:
@@ -168,7 +176,7 @@ def reset_total(counter):
 
 @app.route("/delete/<counter>")
 def delete_counter(counter):
-    if require_login():
+    if require_login() or session["username"] != "Leroy":
         return redirect("/login")
     data = load_data()
     if counter in data["counters"]:
@@ -192,10 +200,13 @@ body{font-family:sans-serif;background:#f5f6fa;margin:0;padding:20px;}
 .delete-btn{position:absolute;top:10px;right:10px;color:white;text-decoration:none;font-weight:bold;}
 .progress-bar-container{width:100%; background: rgba(255,255,255,0.3); height:25px; border-radius:10px; margin-bottom:10px; overflow:hidden;}
 .progress-bar-fill{height:100%; width:0%; background:#fff; border-radius:10px; transition: width 0.5s ease; color:black; text-align:center; font-weight:bold; line-height:25px;}
+.qr{margin-top:10px;}
 </style>
 <script>
 function toggleForm(){document.getElementById('form').style.display='block';}
 function toggleHistory(id){var h=document.getElementById(id);h.style.display=(h.style.display=='none')?'block':'none';}
+
+// Confetti Animation (länger sichtbar + langsam ausblenden)
 function createConfetti(card){
     for(let i=0;i<50;i++){
         let div = document.createElement('div');
@@ -208,26 +219,27 @@ function createConfetti(card){
         div.style.opacity = 1;
         div.style.borderRadius = "50%";
         card.appendChild(div);
-        animateConfettiSmooth(div, card);
+        animateConfetti(div, card);
     }
 }
 
-function animateConfettiSmooth(div, card){
+function animateConfetti(div, card){
     let top = 0;
     let left = parseFloat(div.style.left);
     let speedY = Math.random()*2 + 1; 
     let speedX = (Math.random()-0.5)*1.5;
     let opacity = 1;
     let startTime = performance.now();
+
     function frame(now){
         let elapsed = now - startTime;
         top += speedY;
         left += speedX;
         div.style.top = top + 'px';
         div.style.left = left + 'px';
-        if(elapsed < 5000){ 
+        if(elapsed < 5000){ // 5 Sekunden fliegen
             requestAnimationFrame(frame);
-        } else if(elapsed < 7000){
+        } else if(elapsed < 7000){ // 2 Sekunden ausblenden
             opacity = 1 - (elapsed - 5000)/2000;
             div.style.opacity = opacity;
             requestAnimationFrame(frame);
@@ -266,7 +278,6 @@ function clickButton(el){
 </select>
 <button>Erstellen</button>
 </form>
-
 {% for name,c in counters.items() %}
 <div class="card" style="background:{{c.color}}">
   <a href="/delete/{{c.name}}" class="delete-btn">🗑</a>
@@ -276,7 +287,7 @@ function clickButton(el){
   </div>
   <p>Woche: {{c.weekly_count}} | Gesamt: {{c.total_count}}</p>
   <a href="/click/{{c.name}}" onclick="clickButton(this)"><button class="btn-full">+1</button></a>
-  {% if user == 'Leroy' %}
+  {% if user=='Leroy' %}
   <a href="/reset_weekly/{{c.name}}"><button class="btn-full" style="background:#e67e22;">Woche zurücksetzen</button></a>
   <a href="/reset_total/{{c.name}}"><button class="btn-full" style="background:#c0392b;">Gesamt zurücksetzen</button></a>
   {% endif %}
@@ -289,6 +300,7 @@ function clickButton(el){
       {% endfor %}
     </table>
   </div>
+  <img src="{{qr_codes[c.name]}}" class="qr" title="Scan für +1">
 </div>
 {% endfor %}
 </body>
@@ -321,8 +333,7 @@ TEMPLATE_REGISTER = """<!doctype html>
 
 # ---------------- START ----------------
 if __name__ == "__main__":
-    clean_invalid_counters()
     data = load_data()
-    for cname, c in data["counters"].items():
+    for cname,c in data["counters"].items():
         schedule_reset(cname, c.get("reset_day",0))
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
