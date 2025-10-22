@@ -2,14 +2,10 @@
   "users": {
     "Leroy": {
       "password": "scrypt:32768:8:1$Y9mdJPBOe4DqqxfR$a9b1165237d97e48f5df9776428f4f3f55d4c631702c75c95a6530425ecc53e119a392671645874991ba71ae85c413e8dee41e82e59a52ddc620889474d1f6cc",
-      "clicks": 16
-    },
-    "Test": {
-      "password": "scrypt:32768:8:1$EVmw1fnOkK4Nyybg$b4e12651d49f8bac67b3fb75cc5a0739622964658e9cb2a59d0d164a98c96e15f3f97ea66e85c6b62da0dc8ec580ab4a9426395a1aaa8ad6fe10cea20e3380ea",
       "clicks": 0
     },
-    "Lia": {
-      "password": "scrypt:32768:8:1$D9kgzt65aJhaF9Lz$14f7a1553c9c3e811a36bca7833904cef12fd3405797fe20534d33dee758bb0edd2587d50716e6221cab520443786f3bef90e7aa3c6df1ae0e93f2ab3209afc7",
+    "QR-Code": {
+      "password": "scrypt:32768:8:1$1234567890123456$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "clicks": 0
     }
   },
