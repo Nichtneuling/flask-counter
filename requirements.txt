@@ -2,3 +2,4 @@ Flask
 Werkzeug
 gunicorn
 qrcode[pil]
+schedule
