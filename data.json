@@ -5,11 +5,11 @@
       "clicks": 0
     },
     "QR-Code": {
-      "password": "qwer1234",
+      "password": "scrypt:16384:8:1$aOZbw9avGT1hSgydWy5Y/A==$3MXD8OTltVOHFVtSpKV8M1oDrCusW6Vw3rXwDa8DaaRpd3nqdbLAF4mG7JJ0hTTqt7G5QIQ+hg7KJLBdBFuBow==",
       "clicks": 0
     },
     "Gast": {
-      "password": "",
+      "password": "scrypt:16384:8:1$xaDEP+9kWU72KpWG5KyPag==$pk1VzqEuwKzLApW7RWYWCQe32uPe31UgNBGWh/D9FgaDe55sOOodKYL0l9mlwt0DhhzY1AsMIoz9qht4JC0tGQ==",
       "clicks": 0
     }
   },
