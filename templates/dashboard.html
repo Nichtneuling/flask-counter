@@ -133,12 +133,15 @@
                 <div class="bar" id="bar_{{ name }}" style="width: {{ (c.weekly_count / 6) * 100 }}%;"></div>
             </div>
 
+            <!-- Der +1 Knopf ruft jetzt NUR die JS-Funktion auf -->
             <button class="plus" onclick="addOne('{{ name }}', event)">+1</button>
-            <a href="/show_qrcode/{{ name }}"><button class="qr">QR-Code</button></a>
+
+            <!-- QR-Code zeigt weiterhin Erfolgsseite -->
+            <a href="/show_qrcode/{{ name }}"><button type="button" class="qr">QR-Code</button></a>
 
             {% if user == 'Leroy' %}
-            <a href="/reset_weekly/{{ name }}"><button class="reset">Woche zurücksetzen</button></a>
-            <a href="/reset_total/{{ name }}"><button class="reset">Gesamt zurücksetzen</button></a>
+            <a href="/reset_weekly/{{ name }}"><button type="button" class="reset">Woche zurücksetzen</button></a>
+            <a href="/reset_total/{{ name }}"><button type="button" class="reset">Gesamt zurücksetzen</button></a>
             {% endif %}
         </div>
         {% endfor %}
@@ -189,7 +192,10 @@
         }
         renderConfetti();
 
+        // Der +1 Button ruft nur AJAX auf, kein Seitenwechsel
         function addOne(counter, event) {
+            event.preventDefault(); // 🔥 verhindert jegliche Weiterleitung!
+
             const rect = event.target.getBoundingClientRect();
             const x = rect.left + rect.width / 2;
             const y = rect.top + window.scrollY;
