@@ -9,10 +9,9 @@
             background: #f0f2f5;
             margin: 0;
             text-align: center;
+            overflow-x: hidden;
         }
-        h1 {
-            margin-top: 30px;
-        }
+        h1 { margin-top: 30px; }
         .logout {
             position: fixed;
             top: 20px;
@@ -21,6 +20,7 @@
             text-decoration: none;
             font-weight: bold;
         }
+
         .counter {
             display: inline-block;
             width: 260px;
@@ -28,12 +28,20 @@
             padding: 20px;
             border-radius: 15px;
             color: white;
-            transition: 0.3s;
             position: relative;
+            transition: 0.3s;
         }
-        .counter:hover {
-            transform: scale(1.04);
+        .counter:hover { transform: scale(1.04); }
+
+        .delete-icon {
+            position: absolute;
+            top: 8px;
+            right: 10px;
+            color: white;
+            text-decoration: none;
+            font-size: 20px;
         }
+
         .progress {
             width: 100%;
             height: 10px;
@@ -49,6 +57,7 @@
             border-radius: 5px;
             transition: width 1s ease-out;
         }
+
         button {
             border: none;
             border-radius: 8px;
@@ -61,7 +70,6 @@
         }
         .plus { background: #27ae60; }
         .qr { background: #3498db; }
-        .delete { background: #e74c3c; }
         .reset { background: #9b59b6; }
         button:hover { opacity: 0.85; }
 
@@ -77,6 +85,16 @@
             border-radius: 5px;
             border: 1px solid #ccc;
             margin: 4px;
+        }
+
+        #confetti {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
         }
     </style>
 </head>
@@ -106,6 +124,7 @@
     <div id="container">
         {% for name, c in data.counters.items() %}
         <div class="counter" style="background: {{ c.color }};">
+            <a href="/delete/{{ name }}" class="delete-icon">🗑️</a>
             <h3>{{ name }}</h3>
             <div>Woche: <b>{{ c.weekly_count }}</b> / 6</div>
             <div>Gesamt: <b>{{ c.total_count }}</b></div>
@@ -114,62 +133,74 @@
                 <div class="bar" style="width: {{ (c.weekly_count / 6) * 100 }}%;"></div>
             </div>
 
-            <a href="/click/{{ name }}"><button class="plus">+1</button></a>
+            <button class="plus" onclick="triggerConfetti('{{ name }}')">+1</button>
             <a href="/show_qrcode/{{ name }}"><button class="qr">QR-Code</button></a>
 
             {% if user == 'Leroy' %}
             <a href="/reset_weekly/{{ name }}"><button class="reset">Woche zurücksetzen</button></a>
             <a href="/reset_total/{{ name }}"><button class="reset">Gesamt zurücksetzen</button></a>
-            <a href="/delete/{{ name }}"><button class="delete">Löschen</button></a>
             {% endif %}
         </div>
         {% endfor %}
     </div>
 
-    <!-- Konfetti-Kanone -->
     <canvas id="confetti"></canvas>
+
     <script>
-        // Canvas Setup
-        const canvas = document.getElementById('confetti');
-        const ctx = canvas.getContext('2d');
+        const canvas = document.getElementById("confetti");
+        const ctx = canvas.getContext("2d");
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
+        let confetti = [];
 
-        const confetti = [];
-
-        function addConfetti() {
+        function fireConfetti(x, y) {
             for (let i = 0; i < 150; i++) {
                 confetti.push({
-                    x: canvas.width / 2,
-                    y: canvas.height,
-                    size: Math.random() * 8 + 2,
+                    x: x,
+                    y: y,
+                    size: Math.random() * 6 + 4,
                     color: `hsl(${Math.random() * 360}, 100%, 50%)`,
-                    speedX: (Math.random() - 0.5) * 10,
-                    speedY: Math.random() * -15 - 5,
-                    rotation: Math.random() * 360
+                    speedX: (Math.random() - 0.5) * 14,
+                    speedY: Math.random() * -12 - 4,
+                    gravity: 0.4,
+                    rotation: Math.random() * 360,
+                    opacity: 1
                 });
             }
         }
 
-        function drawConfetti() {
+        function renderConfetti() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             confetti.forEach((p, i) => {
                 p.x += p.speedX;
                 p.y += p.speedY;
-                p.speedY += 0.4; // Gravitation
+                p.speedY += p.gravity;
+                p.opacity -= 0.01;
                 ctx.save();
+                ctx.globalAlpha = p.opacity;
                 ctx.translate(p.x, p.y);
                 ctx.rotate(p.rotation);
                 ctx.fillStyle = p.color;
-                ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
                 ctx.restore();
-                if (p.y > canvas.height) confetti.splice(i, 1);
+                if (p.opacity <= 0) confetti.splice(i, 1);
             });
-            requestAnimationFrame(drawConfetti);
+            requestAnimationFrame(renderConfetti);
+        }
+        renderConfetti();
+
+        function triggerConfetti(counter) {
+            const rect = event.target.getBoundingClientRect();
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + window.scrollY;
+            fireConfetti(x, y);
+            setTimeout(() => window.location.href = "/click/" + counter, 200);
         }
 
-        addConfetti();
-        drawConfetti();
+        window.addEventListener("resize", () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
     </script>
 </body>
 </html>
