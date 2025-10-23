@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, render_template, request, redirect, session, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 import json, os, schedule, threading, time
 from datetime import datetime
@@ -91,25 +91,53 @@ def logout():
     return redirect("/login")
 
 # ---------------- Zähleraktionen ----------------
+@app.route("/add_counter", methods=["POST"])
+def add_counter():
+    if require_login() or session["username"] != "Leroy":
+        return redirect("/")
+    name = request.form["name"].strip()
+    color = request.form["color"]
+    reset_day = int(request.form["reset_day"])
+    data = load_data()
+    if name in data["counters"]:
+        return "Zählername bereits vorhanden!"
+    data["counters"][name] = {
+        "name": name,
+        "color": color,
+        "weekly_count": 0,
+        "total_count": 0,
+        "weekly_clicks": [],
+        "all_clicks": [],
+        "reset_day": reset_day
+    }
+    save_data(data)
+    return redirect("/")
+
+@app.route("/delete/<counter>")
+def delete_counter(counter):
+    if require_login() or session["username"] != "Leroy":
+        return redirect("/")
+    data = load_data()
+    if counter in data["counters"]:
+        del data["counters"][counter]
+        save_data(data)
+    return redirect("/")
+
 @app.route("/click/<counter>")
 def click(counter):
-    if require_login():
-        return redirect("/login")
     data = load_data()
-    c = data["counters"].get(counter)
-    if not c:
+    if counter not in data["counters"]:
         return "Zähler nicht gefunden!"
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    c = data["counters"][counter]
     c["weekly_count"] += 1
-    if c["weekly_count"] > 6: 
+    if c["weekly_count"] > 6:
         c["weekly_count"] = 6
     c["total_count"] += 1
-    c["weekly_clicks"].append({"user": session["username"], "time": now})
-    c["all_clicks"].append({"user": session["username"], "time": now})
+    c["weekly_clicks"].append({"user": "QR-Code", "time": now})
+    c["all_clicks"].append({"user": "QR-Code", "time": now})
     save_data(data)
-    if session["username"] == "QR-Code":
-        return "Trocknervorgang gezählt!"
-    return redirect("/")
+    return render_template("qr_success.html", counter=counter)
 
 @app.route("/reset_weekly/<counter>")
 def reset_weekly(counter):
