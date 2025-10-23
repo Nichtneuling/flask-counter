@@ -4,15 +4,33 @@
     <meta charset="utf-8">
     <title>Erfolg!</title>
     <style>
-        body { text-align:center; margin-top:100px; font-family:sans-serif; background:#f0f2f5; }
-        h1 { color:#27ae60; }
-        button { padding:10px 20px; background:#3498db; color:white; border:none; border-radius:8px; cursor:pointer; }
-        button:hover { background:#2980b9; }
+        body {
+            font-family: sans-serif;
+            background: #f0f2f5;
+            text-align: center;
+            padding-top: 100px;
+        }
+        .success {
+            background: #2ecc71;
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+        a {
+            display: block;
+            margin-top: 20px;
+            color: #3498db;
+            text-decoration: none;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
-    <h1>✅ Trocknervorgang gezählt!</h1>
-    <p>Der Zähler <b>{{ counter }}</b> wurde um 1 erhöht.</p>
-    <a href="/"><button>Zurück</button></a>
+    <div class="success">
+        <h2>✅ Erfolg!</h2>
+        <p>+1 wurde zum Zähler <b>{{ counter }}</b> hinzugefügt.</p>
+    </div>
+    <a href="/">Zurück zum Dashboard</a>
 </body>
 </html>
