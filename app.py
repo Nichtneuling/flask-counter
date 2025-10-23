@@ -1,10 +1,9 @@
-from flask import Flask, render_template, request, redirect, session, url_for, send_file
+from flask import Flask, render_template, request, redirect, session, url_for, send_file, jsonify
 import qrcode
 import io
 import json
 import os
 from datetime import datetime
-from flask import flash
 
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
@@ -83,6 +82,7 @@ def add_counter():
     return redirect("/")
 
 
+# 🚀 Diese Route wird **vom QR-Code-Aufruf** ausgelöst
 @app.route("/click/<counter>")
 def click_counter(counter):
     data = load_data()
@@ -92,6 +92,18 @@ def click_counter(counter):
         save_data(data)
         return render_template("qr_success.html", counter=counter)
     return "Zähler nicht gefunden", 404
+
+
+# Diese Route wird nur per AJAX aufgerufen, wenn man im Dashboard auf +1 klickt
+@app.route("/increment/<counter>", methods=["POST"])
+def increment_counter(counter):
+    data = load_data()
+    if counter in data["counters"]:
+        data["counters"][counter]["weekly_count"] += 1
+        data["counters"][counter]["total_count"] += 1
+        save_data(data)
+        return jsonify(success=True)
+    return jsonify(success=False), 404
 
 
 @app.route("/delete/<counter>")
