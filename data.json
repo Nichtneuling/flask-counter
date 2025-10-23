@@ -5,7 +5,11 @@
       "clicks": 0
     },
     "QR-Code": {
-      "password": "scrypt:32768:8:1$QRCODEHASH$XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "password": "qwer1234",
+      "clicks": 0
+    },
+    "Gast": {
+      "password": "",
       "clicks": 0
     }
   },
