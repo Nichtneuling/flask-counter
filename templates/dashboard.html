@@ -126,14 +126,14 @@
         <div class="counter" style="background: {{ c.color }};">
             <a href="/delete/{{ name }}" class="delete-icon">🗑️</a>
             <h3>{{ name }}</h3>
-            <div>Woche: <b>{{ c.weekly_count }}</b> / 6</div>
-            <div>Gesamt: <b>{{ c.total_count }}</b></div>
+            <div>Woche: <b id="week_{{ name }}">{{ c.weekly_count }}</b> / 6</div>
+            <div>Gesamt: <b id="total_{{ name }}">{{ c.total_count }}</b></div>
 
             <div class="progress">
-                <div class="bar" style="width: {{ (c.weekly_count / 6) * 100 }}%;"></div>
+                <div class="bar" id="bar_{{ name }}" style="width: {{ (c.weekly_count / 6) * 100 }}%;"></div>
             </div>
 
-            <button class="plus" onclick="triggerConfetti('{{ name }}')">+1</button>
+            <button class="plus" onclick="addOne('{{ name }}', event)">+1</button>
             <a href="/show_qrcode/{{ name }}"><button class="qr">QR-Code</button></a>
 
             {% if user == 'Leroy' %}
@@ -175,7 +175,7 @@
                 p.x += p.speedX;
                 p.y += p.speedY;
                 p.speedY += p.gravity;
-                p.opacity -= 0.008; // langsames Ausfaden
+                p.opacity -= 0.008;
                 ctx.save();
                 ctx.globalAlpha = p.opacity;
                 ctx.translate(p.x, p.y);
@@ -189,12 +189,29 @@
         }
         renderConfetti();
 
-        function triggerConfetti(counter) {
+        function addOne(counter, event) {
             const rect = event.target.getBoundingClientRect();
             const x = rect.left + rect.width / 2;
             const y = rect.top + window.scrollY;
             fireConfetti(x, y);
-            setTimeout(() => window.location.href = "/click/" + counter, 300);
+
+            fetch("/increment/" + counter, { method: "POST" })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const weekEl = document.getElementById("week_" + counter);
+                        const totalEl = document.getElementById("total_" + counter);
+                        const barEl = document.getElementById("bar_" + counter);
+
+                        const newWeek = parseInt(weekEl.textContent) + 1;
+                        const newTotal = parseInt(totalEl.textContent) + 1;
+
+                        weekEl.textContent = newWeek;
+                        totalEl.textContent = newTotal;
+
+                        barEl.style.width = (newWeek / 6) * 100 + "%";
+                    }
+                });
         }
 
         window.addEventListener("resize", () => {
