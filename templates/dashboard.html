@@ -1,120 +1,175 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="utf-8">
-<title>Zähler Dashboard</title>
-<style>
-body { font-family: sans-serif; background: #f5f6fa; text-align: center; margin: 0; padding: 0; }
-.counter {
-    display: inline-block;
-    width: 250px;
-    margin: 20px;
-    padding: 20px;
-    border-radius: 20px;
-    background: white;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    position: relative;
-    overflow: hidden;
-}
-button {
-    border: none; border-radius: 10px;
-    background: #3498db; color: white;
-    padding: 10px 20px; margin-top: 10px;
-    cursor: pointer; transition: 0.3s;
-}
-button:hover { background: #2980b9; }
-.delete { position: absolute; top: 10px; right: 10px; color: red; text-decoration: none; }
-.logout { position: fixed; top: 20px; right: 20px; text-decoration: none; color: #333; }
-.bar {
-    height: 10px;
-    background: #ddd;
-    border-radius: 5px;
-    overflow: hidden;
-    margin-bottom: 8px;
-}
-.bar-fill {
-    height: 10px;
-    width: 0%;
-    border-radius: 5px;
-    transition: width 0.5s ease;
-}
-</style>
+    <meta charset="utf-8">
+    <title>Zähler Dashboard</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            text-align: center;
+        }
+        h1 {
+            margin-top: 30px;
+        }
+        .logout {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: #333;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .counter {
+            display: inline-block;
+            width: 260px;
+            margin: 15px;
+            padding: 20px;
+            border-radius: 15px;
+            color: white;
+            transition: 0.3s;
+            position: relative;
+        }
+        .counter:hover {
+            transform: scale(1.04);
+        }
+        .progress {
+            width: 100%;
+            height: 10px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .bar {
+            height: 100%;
+            background: white;
+            width: 0%;
+            border-radius: 5px;
+            transition: width 1s ease-out;
+        }
+        button {
+            border: none;
+            border-radius: 8px;
+            padding: 8px 14px;
+            cursor: pointer;
+            margin: 5px;
+            color: #fff;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        .plus { background: #27ae60; }
+        .qr { background: #3498db; }
+        .delete { background: #e74c3c; }
+        .reset { background: #9b59b6; }
+        button:hover { opacity: 0.85; }
+
+        .add-form {
+            margin-top: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+        input, select {
+            padding: 6px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            margin: 4px;
+        }
+    </style>
 </head>
 <body>
-<h1>Willkommen, {{ user }} 👋</h1>
-<a href="/logout" class="logout">Logout</a>
+    <h1>Willkommen, {{ user }} 👋</h1>
+    <a href="/logout" class="logout">Logout</a>
 
-<div>
-    {% for name, c in data.counters.items() %}
-    <div class="counter" style="border-top: 5px solid {{ c.color }};">
-        <h3>{{ name }}</h3>
-        <div class="bar">
-            <div class="bar-fill" id="bar-{{ name }}" style="background: {{ c.color }};"></div>
-        </div>
-        <p>Woche: {{ c.weekly_count }} / 6</p>
-        <p>Gesamt: {{ c.total_count }}</p>
-
-        <form action="/click/{{ name }}">
-            <button type="submit" onclick="triggerConfetti('{{ name }}')">+1</button>
+    {% if user == 'Leroy' %}
+    <div class="add-form">
+        <form action="/add_counter" method="POST">
+            <input name="name" placeholder="Zählername" required>
+            <input type="color" name="color" required>
+            <select name="reset_day" required>
+                <option value="0">Montag</option>
+                <option value="1">Dienstag</option>
+                <option value="2">Mittwoch</option>
+                <option value="3">Donnerstag</option>
+                <option value="4">Freitag</option>
+                <option value="5">Samstag</option>
+                <option value="6">Sonntag</option>
+            </select>
+            <button type="submit" style="background:#2ecc71;">Zähler hinzufügen</button>
         </form>
-
-        <a href="/show_qrcode/{{ name }}"><button>QR-Code</button></a>
-
-        {% if user == 'Leroy' %}
-        <a href="/reset_weekly/{{ name }}"><button>Woche zurücksetzen</button></a>
-        <a href="/reset_total/{{ name }}"><button>Gesamt zurücksetzen</button></a>
-        {% endif %}
     </div>
-    {% endfor %}
-</div>
+    {% endif %}
 
-<script>
-// Balken-Animation
-document.querySelectorAll('.bar-fill').forEach(b => {
-    const pct = parseInt(b.parentElement.nextElementSibling.textContent.match(/\d+/)[0]) / 6 * 100;
-    setTimeout(() => b.style.width = pct + '%', 300);
-});
+    <div id="container">
+        {% for name, c in data.counters.items() %}
+        <div class="counter" style="background: {{ c.color }};">
+            <h3>{{ name }}</h3>
+            <div>Woche: <b>{{ c.weekly_count }}</b> / 6</div>
+            <div>Gesamt: <b>{{ c.total_count }}</b></div>
 
-// Konfettikanone 🎉
-function triggerConfetti(counterName) {
-    const colors = ["#e67e22","#9b59b6","#3498db","#2ecc71","#f1c40f","#e74c3c"];
-    const originX = window.innerWidth / 2;
-    const originY = window.innerHeight - 100;
+            <div class="progress">
+                <div class="bar" style="width: {{ (c.weekly_count / 6) * 100 }}%;"></div>
+            </div>
 
-    for (let i = 0; i < 100; i++) {
-        const confetti = document.createElement("div");
-        confetti.classList.add("confetti");
-        const size = Math.random() * 8 + 4;
-        confetti.style.width = `${size}px`;
-        confetti.style.height = `${size}px`;
-        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-        confetti.style.position = "fixed";
-        confetti.style.left = originX + "px";
-        confetti.style.top = originY + "px";
-        confetti.style.zIndex = 9999;
-        document.body.appendChild(confetti);
+            <a href="/click/{{ name }}"><button class="plus">+1</button></a>
+            <a href="/show_qrcode/{{ name }}"><button class="qr">QR-Code</button></a>
 
-        const angle = Math.random() * Math.PI - Math.PI / 2;
-        const speed = Math.random() * 10 + 6;
-        const xVel = Math.cos(angle) * speed;
-        const yVel = Math.sin(angle) * speed - 10;
-        let x = originX, y = originY;
-        const gravity = 0.3;
+            {% if user == 'Leroy' %}
+            <a href="/reset_weekly/{{ name }}"><button class="reset">Woche zurücksetzen</button></a>
+            <a href="/reset_total/{{ name }}"><button class="reset">Gesamt zurücksetzen</button></a>
+            <a href="/delete/{{ name }}"><button class="delete">Löschen</button></a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
 
-        const interval = setInterval(() => {
-            x += xVel;
-            y += yVel;
-            yVel += gravity;
-            confetti.style.left = x + "px";
-            confetti.style.top = y + "px";
-            confetti.style.transform = `rotate(${x + y}deg)`;
-            if (y > window.innerHeight) {
-                clearInterval(interval);
-                confetti.remove();
+    <!-- Konfetti-Kanone -->
+    <canvas id="confetti"></canvas>
+    <script>
+        // Canvas Setup
+        const canvas = document.getElementById('confetti');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const confetti = [];
+
+        function addConfetti() {
+            for (let i = 0; i < 150; i++) {
+                confetti.push({
+                    x: canvas.width / 2,
+                    y: canvas.height,
+                    size: Math.random() * 8 + 2,
+                    color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+                    speedX: (Math.random() - 0.5) * 10,
+                    speedY: Math.random() * -15 - 5,
+                    rotation: Math.random() * 360
+                });
             }
-        }, 16);
-    }
-}
-</script>
+        }
+
+        function drawConfetti() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            confetti.forEach((p, i) => {
+                p.x += p.speedX;
+                p.y += p.speedY;
+                p.speedY += 0.4; // Gravitation
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation);
+                ctx.fillStyle = p.color;
+                ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                ctx.restore();
+                if (p.y > canvas.height) confetti.splice(i, 1);
+            });
+            requestAnimationFrame(drawConfetti);
+        }
+
+        addConfetti();
+        drawConfetti();
+    </script>
 </body>
 </html>
