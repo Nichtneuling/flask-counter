@@ -12,8 +12,7 @@ app.secret_key = "supersecretkey"
 
 DATA_FILE = "data.json"
 
-
-# ---------------- Datenverwaltung ----------------
+# ---------------- Daten laden/speichern ----------------
 def load_data():
     if not os.path.exists(DATA_FILE):
         with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -21,11 +20,9 @@ def load_data():
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-
 def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-
 
 # ---------------- Scheduler ----------------
 def schedule_reset(counter_name, weekday):
@@ -43,29 +40,24 @@ def schedule_reset(counter_name, weekday):
     if 0 <= weekday <= 6:
         getattr(schedule.every(), weekdays[weekday]).at("00:00").do(job)
 
-
 def start_scheduler():
     while True:
         schedule.run_pending()
         time.sleep(60)
 
-
 threading.Thread(target=start_scheduler, daemon=True).start()
 
-
-# ---------------- Hilfsfunktionen ----------------
+# ---------------- Helper ----------------
 def require_login():
     return "username" not in session
 
-
-# ---------------- Routes ----------------
+# ---------------- ROUTES ----------------
 @app.route("/")
 def home():
     if require_login():
         return redirect("/login")
     data = load_data()
-    return render_template("dashboard.html", counters=data["counters"], username=session["username"])
-
+    return render_template("dashboard.html", counters=data["counters"], user=session["username"])
 
 # ---------- LOGIN ----------
 @app.route("/login", methods=["GET", "POST"])
@@ -75,14 +67,11 @@ def login():
         password = request.form["password"]
         data = load_data()
         user = data["users"].get(username)
-
         if not user or not check_password_hash(user["password"], password):
             return render_template("login.html", error="Falscher Benutzername oder Passwort!")
-
         session["username"] = username
         return redirect("/")
     return render_template("login.html")
-
 
 # ---------- REGISTRIEREN ----------
 @app.route("/register", methods=["GET", "POST"])
@@ -91,19 +80,15 @@ def register():
         username = request.form["username"].strip()
         password = request.form["password"].strip()
         data = load_data()
-
         if username in data["users"]:
             return render_template("register.html", error="Benutzername bereits vergeben!")
-
         data["users"][username] = {
             "password": generate_password_hash(password),
             "clicks": 0
         }
         save_data(data)
         return redirect("/login")
-
     return render_template("register.html")
-
 
 # ---------- LOGOUT ----------
 @app.route("/logout")
@@ -111,21 +96,19 @@ def logout():
     session.pop("username", None)
     return redirect("/login")
 
-
 # ---------- ZÄHLER KLICK ----------
 @app.route("/click/<counter>")
 def click(counter):
     if require_login():
         return redirect("/login")
+
     data = load_data()
     c = data["counters"].get(counter)
     if not c:
         return "Zähler nicht gefunden!"
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    c["weekly_count"] += 1
-    if c["weekly_count"] > 6:
-        c["weekly_count"] = 6
+    c["weekly_count"] = min(c["weekly_count"] + 1, 6)
     c["total_count"] += 1
     c["weekly_clicks"].append({"user": session["username"], "time": now})
     c["all_clicks"].append({"user": session["username"], "time": now})
@@ -135,14 +118,13 @@ def click(counter):
         return "Trocknervorgang gezählt!"
     return redirect("/")
 
-
 # ---------- ZÄHLER HINZUFÜGEN ----------
 @app.route("/add_counter", methods=["POST"])
 def add_counter():
     if require_login() or session["username"] != "Leroy":
         return redirect("/")
 
-    name = request.form["name"]
+    name = request.form["name"].strip()
     color = request.form["color"]
     reset_day = int(request.form["reset_day"])
     data = load_data()
@@ -164,7 +146,6 @@ def add_counter():
     schedule_reset(name, reset_day)
     return redirect("/")
 
-
 # ---------- ZÄHLER LÖSCHEN ----------
 @app.route("/delete/<counter>")
 def delete_counter(counter):
@@ -176,8 +157,7 @@ def delete_counter(counter):
         save_data(data)
     return redirect("/")
 
-
-# ---------- RESET FUNKTIONEN ----------
+# ---------- WOCHE & GESAMT ZURÜCKSETZEN ----------
 @app.route("/reset_weekly/<counter>")
 def reset_weekly(counter):
     if require_login() or session["username"] != "Leroy":
@@ -189,7 +169,6 @@ def reset_weekly(counter):
         c["weekly_clicks"] = []
         save_data(data)
     return redirect("/")
-
 
 @app.route("/reset_total/<counter>")
 def reset_total(counter):
@@ -203,24 +182,25 @@ def reset_total(counter):
         save_data(data)
     return redirect("/")
 
-
-# ---------- QR-CODE ANZEIGE ----------
+# ---------- QR-CODE ----------
 @app.route("/show_qrcode/<counter>")
 def show_qrcode(counter):
     if require_login():
         return redirect("/login")
+
     data = load_data()
     if counter not in data["counters"]:
         return "Zähler nicht gefunden!"
+
     click_url = request.host_url + f"click/{counter}"
     img = qrcode.make(click_url)
     buffered = BytesIO()
     img.save(buffered, format="PNG")
     img_str = base64.b64encode(buffered.getvalue()).decode()
+
     return render_template("qrcode.html", counter=counter, img_data=img_str)
 
-
-# ---------- START SERVER ----------
+# ---------- START ----------
 if __name__ == "__main__":
     data = load_data()
     for cname, c in data["counters"].items():
