@@ -1,15 +1,15 @@
 {
   "users": {
     "Leroy": {
-      "password": "scrypt:32768:8:1$Y9mdJPBOe4DqqxfR$a9b1165237d97e48f5df9776428f4f3f55d4c631702c75c95a6530425ecc53e119a392671645874991ba71ae85c413e8dee41e82e59a52ddc620889474d1f6cc",
+      "password": "scrypt:32768:8:1$REPLACE_WITH_HASH_FOR_qwer1234",
       "clicks": 0
     },
     "QR-Code": {
-      "password": "scrypt:16384:8:1$aOZbw9avGT1hSgydWy5Y/A==$3MXD8OTltVOHFVtSpKV8M1oDrCusW6Vw3rXwDa8DaaRpd3nqdbLAF4mG7JJ0hTTqt7G5QIQ+hg7KJLBdBFuBow==",
+      "password": "scrypt:32768:8:1$REPLACE_WITH_HASH_FOR_qwer1234",
       "clicks": 0
     },
     "Gast": {
-      "password": "scrypt:16384:8:1$xaDEP+9kWU72KpWG5KyPag==$pk1VzqEuwKzLApW7RWYWCQe32uPe31UgNBGWh/D9FgaDe55sOOodKYL0l9mlwt0DhhzY1AsMIoz9qht4JC0tGQ==",
+      "password": "scrypt:32768:8:1$REPLACE_WITH_HASH_FOR_qwer1234",
       "clicks": 0
     }
   },
