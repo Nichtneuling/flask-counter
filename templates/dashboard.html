@@ -1,166 +1,164 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="utf-8">
-  <title>Zähler Dashboard</title>
-  <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #f0f2f5;
-      text-align: center;
-      margin: 0;
-      padding: 30px;
-    }
+    <meta charset="utf-8">
+    <title>Zähler Dashboard</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #f5f6fa;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        h1 {
+            margin-top: 30px;
+        }
+        .counter {
+            display: inline-block;
+            width: 250px;
+            margin: 25px;
+            padding: 25px;
+            border-radius: 20px;
+            background: white;
+            box-shadow: 0 0 15px rgba(0,0,0,0.15);
+            position: relative;
+            vertical-align: top;
+        }
+        .progress-circle {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            margin: 0 auto 10px;
+            background: conic-gradient(#eee 0deg, #eee 360deg);
+            position: relative;
+        }
+        .progress-circle span {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            font-weight: bold;
+        }
+        button {
+            border: none;
+            border-radius: 8px;
+            background: #3498db;
+            color: white;
+            padding: 8px 16px;
+            margin: 5px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .delete {
+            position: absolute;
+            top: 10px; right: 10px;
+            color: red;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .logout {
+            position: fixed;
+            top: 20px; right: 20px;
+            text-decoration: none;
+            color: #333;
+            font-weight: bold;
+        }
 
-    h1 {
-      color: #222;
-    }
-
-    .logout {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      text-decoration: none;
-      color: #444;
-    }
-
-    .counter {
-      display: inline-block;
-      width: 260px;
-      margin: 20px;
-      padding: 20px;
-      border-radius: 20px;
-      background: white;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-      position: relative;
-      overflow: hidden;
-      transition: transform 0.3s ease;
-    }
-
-    .counter:hover {
-      transform: translateY(-5px);
-    }
-
-    .delete {
-      position: absolute;
-      top: 8px;
-      right: 10px;
-      color: #e74c3c;
-      font-weight: bold;
-      text-decoration: none;
-      font-size: 20px;
-    }
-
-    button {
-      border: none;
-      border-radius: 10px;
-      background: #3498db;
-      color: white;
-      padding: 10px 20px;
-      margin-top: 10px;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-
-    button:hover {
-      background: #2980b9;
-    }
-
-    .bar {
-      height: 15px;
-      border-radius: 10px;
-      background: #eee;
-      overflow: hidden;
-      margin-top: 10px;
-    }
-
-    .bar-fill {
-      height: 100%;
-      width: 0%;
-      border-radius: 10px;
-      transition: width 1.2s ease;
-    }
-
-    form {
-      display: inline-block;
-      margin: 10px;
-    }
-
-    .add-counter {
-      margin-top: 20px;
-    }
-
-  </style>
+        /* Konfetti */
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background-color: #f39c12;
+            animation: fall 7s ease-out forwards;
+            opacity: 1;
+        }
+        @keyframes fall {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            80% { opacity: 1; }
+            100% { transform: translateY(800px) rotate(720deg); opacity: 0; }
+        }
+    </style>
 </head>
 <body>
-  <h1>Willkommen, {{ username }} 👋</h1>
-  <a href="/logout" class="logout">Logout</a>
+    <h1>Willkommen, {{ user }} 👋</h1>
+    <a href="/logout" class="logout">Logout</a>
 
-  {% if username == 'Leroy' %}
-  <form class="add-counter" action="/add_counter" method="POST">
-    <input name="name" placeholder="Zählername" required>
-    <input type="color" name="color" value="#3498db" required>
-    <select name="reset_day" required>
-      <option value="0">Montag</option>
-      <option value="1">Dienstag</option>
-      <option value="2">Mittwoch</option>
-      <option value="3">Donnerstag</option>
-      <option value="4">Freitag</option>
-      <option value="5">Samstag</option>
-      <option value="6">Sonntag</option>
-    </select>
-    <button type="submit">Zähler hinzufügen</button>
-  </form>
-  {% endif %}
+    {% if user == 'Leroy' %}
+    <form action="/add_counter" method="POST" style="margin: 20px;">
+        <input name="name" placeholder="Zählername" required>
+        <input type="color" name="color" value="#3498db" required>
+        <select name="reset_day" required>
+            <option value="0">Montag</option>
+            <option value="1">Dienstag</option>
+            <option value="2">Mittwoch</option>
+            <option value="3">Donnerstag</option>
+            <option value="4">Freitag</option>
+            <option value="5">Samstag</option>
+            <option value="6">Sonntag</option>
+        </select>
+        <button type="submit">Zähler hinzufügen</button>
+    </form>
+    {% endif %}
 
-  <div id="counters">
-    {% for name, c in counters.items() %}
-    <div class="counter" style="border-top: 6px solid {{ c.color }}">
-      {% if username == 'Leroy' %}
-      <a href="/delete/{{ name }}" class="delete">✖</a>
-      {% endif %}
-      <h3>{{ name }}</h3>
-      <p>Woche: <span class="week">{{ c.weekly_count }}</span> / 6</p>
-      <p>Gesamt: {{ c.total_count }}</p>
+    <div>
+        {% for name, c in counters.items() %}
+        <div class="counter">
+            <a href="/delete/{{ name }}" class="delete" {% if user != 'Leroy' %}style="display:none;"{% endif %}>🗑</a>
+            <div class="progress-circle" id="progress-{{ name|replace(' ', '_') }}" style="background: conic-gradient({{ c.color }} {{ c.weekly_count * 60 }}deg, #eee {{ c.weekly_count * 60 }}deg);">
+                <span>{{ c.weekly_count }}/6</span>
+            </div>
+            <h3>{{ name }}</h3>
+            <p>Gesamt: {{ c.total_count }}</p>
 
-      <div class="bar">
-        <div class="bar-fill" style="background: {{ c.color }};"></div>
-      </div>
+            <form action="/click/{{ name }}">
+                <button type="submit" onclick="triggerConfetti('{{ name|replace(' ', '_') }}')">+1</button>
+            </form>
+            <a href="/show_qrcode/{{ name }}"><button>QR-Code</button></a>
 
-      <form action="/click/{{ name }}">
-        <button class="click-btn" style="background: {{ c.color }};">+1</button>
-      </form>
-
-      <a href="/show_qrcode/{{ name }}"><button>QR-Code</button></a>
+            {% if user == 'Leroy' %}
+            <form action="/reset_weekly/{{ name }}">
+                <button type="submit" style="background:#e67e22;">Woche zurücksetzen</button>
+            </form>
+            <form action="/reset_total/{{ name }}">
+                <button type="submit" style="background:#c0392b;">Gesamt zurücksetzen</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endfor %}
     </div>
-    {% endfor %}
-  </div>
 
-  {% if username == 'Leroy' %}
-  <div style="margin-top: 30px;">
-    <a href="/reset_weekly/Trockner"><button>Wochencounter zurücksetzen</button></a>
-    <a href="/reset_total/Trockner"><button>Gesamten Counter zurücksetzen</button></a>
-  </div>
-  {% endif %}
+    <script>
+        // 🟣 Ladebalken bei jedem Klick animieren
+        function animateProgress(counterName, current) {
+            const circle = document.getElementById("progress-" + counterName);
+            let progress = 0;
+            const target = Math.min(current * 60, 360);
+            const color = circle.style.background.match(/conic-gradient\(([^,]+)/);
+            const gradientColor = color ? color[1] : "#3498db";
 
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-  <script>
-    document.querySelectorAll(".bar").forEach((bar, i) => {
-      const fill = bar.querySelector(".bar-fill");
-      const weekCount = parseInt(bar.parentElement.querySelector(".week").innerText);
-      const percent = Math.min(weekCount / 6 * 100, 100);
-      setTimeout(() => { fill.style.width = percent + "%"; }, 400);
-    });
+            const interval = setInterval(() => {
+                if (progress >= target) clearInterval(interval);
+                circle.style.background = `conic-gradient(${gradientColor} ${progress}deg, #eee ${progress}deg)`;
+                progress += 6;
+            }, 25);
+        }
 
-    document.querySelectorAll(".click-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.8 }
-        });
-      });
-    });
-  </script>
+        // 🎉 Konfetti-Animation
+        function triggerConfetti(counterName) {
+            for (let i = 0; i < 80; i++) {
+                const confetti = document.createElement("div");
+                confetti.classList.add("confetti");
+                confetti.style.left = Math.random() * window.innerWidth + "px";
+                confetti.style.backgroundColor = ["#e67e22","#9b59b6","#3498db","#2ecc71","#f1c40f","#e74c3c"][Math.floor(Math.random()*6)];
+                document.body.appendChild(confetti);
+                setTimeout(() => confetti.remove(), 7000);
+            }
+        }
+    </script>
 </body>
 </html>
