@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="utf-8">
-    <title>QR-Code</title>
-    <style>
-        body { text-align: center; font-family: sans-serif; background: #f5f6fa; }
-        img { margin-top: 30px; border: 5px solid #3498db; border-radius: 20px; }
-        button { padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        button:hover { background: #2980b9; }
-    </style>
+<meta charset="utf-8">
+<title>QR-Code</title>
+<style>
+body { text-align: center; font-family: sans-serif; background: #f5f6fa; margin: 0; padding: 0; }
+img { margin-top: 50px; border: 5px solid #3498db; border-radius: 20px; }
+button { padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 8px; cursor: pointer; margin-top: 30px; transition: 0.3s; }
+button:hover { background: #2980b9; }
+</style>
 </head>
 <body>
-    <h2>QR-Code für "{{ counter }}"</h2>
-    <img src="/qrcode_image/{{ counter }}" alt="QR Code">
-    <br><br>
-    <a href="/dashboard"><button>Zurück</button></a>
+<h2>QR-Code für "{{ counter }}"</h2>
+<img src="data:image/png;base64,{{ qrcode_data }}" alt="QR-Code">
+<br>
+<a href="/"><button>⬅ Zurück</button></a>
 </body>
 </html>
